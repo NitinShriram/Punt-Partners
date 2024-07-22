@@ -16,7 +16,7 @@ function MyDropzone() {
     const params = new URLSearchParams();
     params.append("api_key", apikey);
     axios
-      .post("https://punt-partners-b.vercel.app//api/taudio", formData, {
+      .post("https://punt-partners-b.vercel.app/api/taudio", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
