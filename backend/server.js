@@ -131,3 +131,7 @@ app.post("/api/taudio", upload.single("audio"), async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+app.get("/", async (req, res) => {
+  res.send("<div>Hello</div>");
+});
