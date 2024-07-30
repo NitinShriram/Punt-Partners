@@ -9,30 +9,34 @@ function MyDropzone() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const [open, setOpen] = useState(false);
+
   const handleAudioUpload = (file) => {
     const formData = new FormData();
     formData.append("audio", file);
-    const apikey = document.getElementById("inputapi").value;
-    const params = new URLSearchParams();
-    params.append("api_key", apikey);
+
     axios
-      .post("https://punt-partners-b.vercel.app/api/taudio", formData, {
+      .post("https://voicequery-ai-backend.vercel.app/api/taudio", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
-        params: params,
       })
       .then((response) => {
+        console.log("Response from server:", response.data);
         if (response.data.openapiResponse === "ERROR") {
           setOpen(true);
+        } else {
+          console.log("Transcription Result:", response.data.result);
+          setTdata(response.data.result);
+          const audioBlob = new Blob(
+            [
+              Uint8Array.from(atob(response.data.audio), (c) =>
+                c.charCodeAt(0)
+              ),
+            ],
+            { type: "audio/wav" }
+          );
+          setAudioSrc(URL.createObjectURL(audioBlob));
         }
-        console.log("Transcription Result:", response.data.result);
-        setTdata(response.data.result);
-        const audioBlob = new Blob(
-          [Uint8Array.from(atob(response.data.audio), (c) => c.charCodeAt(0))],
-          { type: "audio/wav" }
-        );
-        setAudioSrc(URL.createObjectURL(audioBlob));
       })
       .catch((error) => {
         console.error("Error uploading audio:", error);
@@ -83,66 +87,73 @@ function MyDropzone() {
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-200 p-6">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800">
-          Question and Answer
-        </h2>
-
-        <div className="p-4 bg-gray-100 rounded-md mb-4">
-          <p className="text-gray-700 whitespace-pre-wrap">{tdata}</p>
+    <>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4 md:p-6">
+        <div className="text-5xl font-extrabold mb-4 text-white text-center transition-colors duration-300 hover:text-green-400">
+          VOICE
+          <span className="text-green-400 hover:text-white transition-colors duration-300">
+            {" "}
+            QUERY
+          </span>
+          AI
         </div>
 
-        <div
-          {...getRootProps()}
-          className="border-2 border-dashed border-gray-400 p-6 w-full text-center mb-4 rounded-md hover:border-gray-500 focus:outline-none"
-        >
-          <input {...getInputProps()} />
-          {isDragActive ? (
-            <p className="text-gray-700">Drop the files here ...</p>
-          ) : (
-            <p className="text-gray-700">
-              Drag 'n' drop some files here, or click to select files
-            </p>
-          )}
-        </div>
-        {open && <div>Open API key is not valid</div>}
-        <div className="flex justify-center mb-4">
-          {isRecording ? (
-            <button
-              onClick={stopRecording}
-              className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none"
-            >
-              Stop Recording
-            </button>
-          ) : (
-            <button
-              onClick={startRecording}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none"
-            >
-              Start Recording
-            </button>
-          )}
-        </div>
-
-        <div className="p-4 bg-gray-100 rounded-md mb-4">
-          <p className="text-gray-700 mb-2">Enter the API key:</p>
-          <input
-            type="text"
-            className="w-full p-2 border border-gray-300 rounded-md text-gray-700"
-            id="inputapi"
-          />
-        </div>
-
-        {audioSrc && (
-          <div className="max-w-lg mx-auto">
-            <audio controls src={audioSrc} className="w-full rounded-md">
-              Your browser does not support the audio element.
-            </audio>
+        <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-2xl">
+          <div className="p-4 bg-gray-700 rounded-md mb-4 min-h-[100px]">
+            <p className="text-gray-200 whitespace-pre-wrap">{tdata}</p>
           </div>
-        )}
+
+          <div
+            {...getRootProps()}
+            className="border-2 border-dashed border-green-500 p-6 w-full text-center mb-4 rounded-md hover:border-green-600 focus:outline-none transition-colors bg-gray-700 text-gray-200"
+          >
+            <input {...getInputProps()} />
+            {isDragActive ? (
+              <p>Drop the files here ...</p>
+            ) : (
+              <p>Drag and drop some files here, or click to select files</p>
+            )}
+          </div>
+          {open && (
+            <div
+              className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
+              role="alert"
+            >
+              <strong className="font-bold">Error:</strong>
+              <span className="block sm:inline">
+                {" "}
+                Open API key is not valid.
+              </span>
+            </div>
+          )}
+          <div className="flex justify-center mb-4">
+            {isRecording ? (
+              <button
+                onClick={stopRecording}
+                className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none"
+              >
+                Stop Recording
+              </button>
+            ) : (
+              <button
+                onClick={startRecording}
+                className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none"
+              >
+                Start Recording
+              </button>
+            )}
+          </div>
+
+          {audioSrc && (
+            <div className="max-w-lg mx-auto">
+              <audio controls src={audioSrc} className="w-full rounded-md">
+                Your browser does not support the audio element.
+              </audio>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

@@ -13,69 +13,52 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 5001;
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
-const apiKey = process.env.OPENAI_API_KEY;
+const WOLFRAM_APP_ID = process.env.WOLFRAM_APP_ID;
 
-const getAnswer = async (api_key, question) => {
-  try {
-    const response = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-3.5-turbo",
-        messages: [{ role: "user", content: question }],
-        max_tokens: 150,
-        temperature: 0.7,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${api_key}`,
-        },
-      }
-    );
-
-    console.log("Response:", response.data.choices[0].message.content.trim());
-  } catch (error) {
-    console.error(
-      "Error:",
-      error.response ? error.response.data : error.message
-    );
-  }
-};
-
-if (!DEEPGRAM_API_KEY) {
-  console.error("DEEPGRAM_API_KEY is not defined");
+if (!DEEPGRAM_API_KEY || !WOLFRAM_APP_ID) {
+  console.error("DEEPGRAM_API_KEY or WOLFRAM_APP_ID is not defined");
   process.exit(1);
 }
 
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
+const deepgram = createClient(DEEPGRAM_API_KEY);
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+const getAnswer = async (query) => {
+  try {
+    const response = await axios.get(
+      `http://api.wolframalpha.com/v1/spoken?i=${encodeURIComponent(
+        query
+      )}&appid=${WOLFRAM_APP_ID}`
+    );
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Error in getAnswer:",
+      error.response ? error.response.data : error.message
+    );
+    return "Could you please clarify the question?";
+    throw new Error("Failed to get answer from Wolfram Alpha API");
+  }
+};
+
 const getAudio = async (text) => {
-  const response = await deepgram.speak.request(
-    { text },
-    {
-      model: "aura-asteria-en",
-      encoding: "linear16",
-      container: "wav",
-    }
-  );
-  const stream = await response.getStream();
-  const headers = await response.getHeaders();
-  if (stream) {
-    const buffer = await getAudioBuffer(stream);
-    fs.writeFile("output.wav", buffer, (err) => {
-      if (err) {
-        console.error("Error writing audio to file:", err);
-      } else {
-        console.log("Audio file written to output.wav");
+  try {
+    const response = await deepgram.speak.request(
+      { text },
+      {
+        model: "aura-asteria-en",
+        encoding: "linear16",
+        container: "wav",
       }
-    });
+    );
+    const stream = await response.getStream();
+    const buffer = await getAudioBuffer(stream);
     return buffer;
-  } else {
-    console.error("Error generating audio:", stream);
-    throw new Error("Error generating audio");
+  } catch (error) {
+    console.error("Error generating audio:", error.message);
+    throw new Error("Failed to generate audio from Deepgram");
   }
 };
 
@@ -86,7 +69,6 @@ const getAudioBuffer = async (response) => {
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-
     chunks.push(value);
   }
 
@@ -101,9 +83,6 @@ const getAudioBuffer = async (response) => {
 app.post("/api/taudio", upload.single("audio"), async (req, res) => {
   try {
     const audioBuffer = req.file.buffer;
-    console.log(audioBuffer);
-    const { api_key } = req.query;
-    console.log(api_key);
     const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
       audioBuffer,
       {
@@ -111,19 +90,24 @@ app.post("/api/taudio", upload.single("audio"), async (req, res) => {
         smart_format: true,
       }
     );
-    const text = result.results.channels[0].alternatives[0].transcript;
 
-    let ans = await getAnswer(api_key, text);
-    if (!ans) {
-      ans = "Invalid API key";
+    if (error) {
+      console.error("Transcription error:", error);
+      return res.status(500).json({ error: "Transcription failed" });
     }
-    const audioData = await getAudio(ans);
+
+    const text = result.results.channels[0].alternatives[0].transcript;
+    const answer = await getAnswer(text);
+    console.log(answer);
+    const audioData = await getAudio(answer);
+
     res.json({
-      openapiResponse: !ans ? "ERROR" : "SUCCESS",
+      openapiResponse: "SUCCESS",
       result: text,
       audio: audioData.toString("base64"),
     });
   } catch (error) {
+    console.error("Error processing audio:", error.message);
     res.status(500).json({ error: error.message });
   }
 });
